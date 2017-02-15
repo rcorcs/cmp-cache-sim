@@ -10,12 +10,18 @@ if __name__=='__main__':
    num_lines=512 #number of cache lines per processor
 
    arch = Architecture(nprocs,block_size,num_lines)
-   #mem = snooping.SnoopingProtocol(arch)
-   mem = directory.DirectoryProtocol(arch)
+   mem = snooping.MSIProtocol(arch)
+   #mem = directory.DirectoryProtocol(arch)
    mem._debug = ('-v' in sys.argv)
 
    f = open(sys.argv[1])
    for line in f:
+      if '#' in line:
+         if mem._debug:
+            print line[line.index('#'):].strip()
+         line = line[:line.index('#')]
+      if len(line.strip())==0:
+         continue
       tmp = line.strip().split()
       proc_id = int(tmp[0][1:])
       opcode = tmp[1]
@@ -33,6 +39,9 @@ if __name__=='__main__':
 
    #mem.dump()
    print 'Cache Size (bits):',mem.sizeInBits(32)
+   print 'Total Reads:',mem.stats.num_reads
+   print 'Total Writes:',mem.stats.num_writes
+   print 'Total Requests:',mem.stats.num_reqs
    print 'Hit Rate:',mem.stats.hitRate()
    print 'Invalidations:',mem.stats.invalidations
    print 'Private Accesses:',mem.stats.private_access

@@ -98,7 +98,7 @@ class DirectoryProtocol(CacheProtocol):
             req_cycles += pdist*3 #hops from the closest processor up to the current processor
          self.entries[block_id].state=Shared
          self.entries[block_id].sharing[proc_id] = 1
-      else: 
+      else:
          self.stats.private_access += 1
       req_cycles += 1 #Reading data from local cache: 1 cycle
 

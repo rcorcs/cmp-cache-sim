@@ -1,6 +1,8 @@
 class Statistics:
    def __init__(self):
       self.num_reqs = 0
+      self.num_reads = 0
+      self.num_writes = 0
       self.num_misses = 0
       self.invalidations = 0
       self.private_access = 0
@@ -28,3 +30,4 @@ class CacheProtocol:
       pass
    def dump(self):
       pass
+

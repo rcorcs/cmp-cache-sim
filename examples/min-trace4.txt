@@ -1,0 +1,4 @@
+P1 R 10
+P2 W 10
+P1 R 10
+#the final read should take 16 cycles

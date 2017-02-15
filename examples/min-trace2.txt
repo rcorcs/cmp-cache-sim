@@ -1,0 +1,4 @@
+P1 R 10
+P3 R 10
+P1 W 10
+#the final write should take 17 cycles
