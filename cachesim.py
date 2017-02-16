@@ -11,7 +11,10 @@ if __name__=='__main__':
 
    arch = Architecture(nprocs,block_size,num_lines)
    mem = snooping.MSIProtocol(arch)
-   #mem = directory.DirectoryProtocol(arch)
+   if '-mesi' in sys.argv:
+      mem = snooping.MESIProtocol(arch)
+   if '-dir' in sys.argv:
+      mem = directory.DirectoryProtocol(arch)
    mem._debug = ('-v' in sys.argv)
 
    f = open(sys.argv[1])
@@ -30,11 +33,13 @@ if __name__=='__main__':
       if opcode=='R':
          tmp = mem.read(proc_id,addr)
          if mem._debug:
-            print tmp 
+            print tmp
+            print '' 
       elif opcode=='W':
          tmp = mem.write(proc_id,addr)
          if mem._debug:
             print tmp
+            print ''
    f.close()
 
    #mem.dump()
@@ -43,7 +48,9 @@ if __name__=='__main__':
    print 'Total Writes:',mem.stats.num_writes
    print 'Total Requests:',mem.stats.num_reqs
    print 'Hit Rate:',mem.stats.hitRate()
+   print 'Direct Write:',mem.stats.direct_write
    print 'Invalidations:',mem.stats.invalidations
+   print 'Invalidation Msgs:',mem.stats.invalidation_messages
    print 'Private Accesses:',mem.stats.private_access
    print 'Remote Accesses:',mem.stats.remote_access
    print 'Off-chip Accesses:',mem.stats.offchip_access
