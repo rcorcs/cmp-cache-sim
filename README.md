@@ -15,5 +15,5 @@ We implement both MSI and MESI snooping protocols.
 
 ## Developer
 
-Rodrigo C. O. Rocha
+Rodrigo C. O. Rocha  
 [http://rcor.me](http://rcor.me)
