@@ -15,6 +15,19 @@ def map_mem_address(addr,block_size,num_lines):
    tag = block_id >> nbits
    return (tag, slot, word_id)
 
+def compose_block_id(tag,slot,num_lines):
+   nbits = int(np.log2(num_lines))
+   return ((tag<<nbits)|slot)
+
+
+def decompose_block_id(block_id,num_lines):
+   nbits = int(np.log2(num_lines))
+   mask = 2**nbits - 1
+   slot = block_id & mask
+   tag = block_id >> nbits
+   return (tag, slot)
+
+
 class CacheLine:
    def __init__(self,block_size):
       #self.words = np.zeros(2**block_size)

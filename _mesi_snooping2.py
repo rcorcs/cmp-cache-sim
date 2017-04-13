@@ -1,7 +1,12 @@
 from enum import Enum
 
+import numpy as np
+
 from architecture import *
 from cacheprotocol import *
+
+
+replacedAddrs = []
 
 class MESIStates(Enum):
    Invalid=0
@@ -14,6 +19,12 @@ class MESIProtocol(CacheProtocol):
       self._debug = False
       self.arch = arch
       self.stats = Statistics()
+      #self.sharedCaches = [Cache(arch.block_size, arch.num_lines),Cache(arch.block_size, arch.num_lines)]
+      self.sharedCache = Cache(arch.block_size, 256)
+      self.nPrefetch = 1
+      #self.sharedCache = []
+      #for _ in xrange(512):
+      #   self.sharedCache.append( None )
 
    def dump(self):
       for pid in xrange(self.arch.nprocs):
@@ -51,6 +62,18 @@ class MESIProtocol(CacheProtocol):
       if not hit or self.arch.procs[proc_id].state(slot,tag)==MESIStates.Invalid:
          self.stats.num_misses += 1
          if self.arch.procs[proc_id].lines[slot].state==MESIStates.Modified:
+            replacedAddrs.append( (self.arch.procs[proc_id].lines[slot].tag, slot) )
+            #if self.sharedCaches[0].lines[slot].tag!=None:
+            #   if self.sharedCaches[1].lines[slot].tag==None:
+			#      self.sharedCaches[1].fetch(slot, self.arch.procs[proc_id].lines[slot].tag)
+            #   else:
+			#      self.sharedCaches[0].fetch(slot, self.arch.procs[proc_id].lines[slot].tag)
+            #else:
+			#   self.sharedCaches[0].fetch(slot, self.arch.procs[proc_id].lines[slot].tag)
+            #self.sharedCache[addr % len(self.sharedCache)] = addr
+            replaced_block_id = compose_block_id(self.arch.procs[proc_id].lines[slot].tag,slot,self.arch.num_lines)
+            replaced_tag,replaced_slot = decompose_block_id(replaced_block_id,len(self.sharedCache.lines))
+            self.sharedCache.fetch(replaced_slot,replaced_tag)
             self.stats.replacement_writeback += 1
             if self._debug:
                print 'Replacement Writeback'
@@ -88,9 +111,29 @@ class MESIProtocol(CacheProtocol):
             if self._debug:
                print '[P'+str(proc_id)+' R '+str(addr)+'] Read miss: exclusive cache line (off-chip memory access)'
             req_cycles += 3 #One hop to the memory controller: 3 cycles
-            req_cycles += 10 #Off-chip read: Memory Access latency 10
+			
+            req_cycles += 1 #probing shared cache: 1 cycle
+            #if self.sharedCaches[0].has(slot,tag):
+            #   self.sharedCaches[0].fetch(slot,None)
+            #elif self.sharedCaches[1].has(slot,tag):
+            #   self.sharedCaches[1].fetch(slot,None)
+            #if self.sharedCache[addr % len(self.sharedCache)]==addr:
+            #   self.sharedCache[addr % len(self.sharedCache)] = None
+            prefetch_block_id = compose_block_id(tag,slot,self.arch.num_lines)
+            prefetch_tag,prefetch_slot = decompose_block_id(prefetch_block_id,len(self.sharedCache.lines))
+            if self.sharedCache.has(prefetch_slot, prefetch_tag):
+               self.sharedCache.fetch(prefetch_slot,None)
+            else:
+               req_cycles += 10 #Off-chip read: Memory Access latency 10
+               for i in xrange(1,self.nPrefetch+1):
+                  prefetch_tag, prefetch_slot, _ = map_mem_address(addr+i*self.arch.block_size,self.arch.block_size,self.arch.num_lines)
+                  prefetch_block_id = compose_block_id(prefetch_tag,prefetch_slot,self.arch.num_lines)
+                  prefetch_tag,prefetch_slot = decompose_block_id(prefetch_block_id,len(self.sharedCache.lines))
+                  self.sharedCache.fetch(prefetch_slot,prefetch_tag)
             req_cycles += 3 #One hop back from the memory controller: 3 cycles
             self.stats.offchip_access += 1
+            #if (tag, slot) in replacedAddrs:
+            #   print 'Previously replaced address'
             self.arch.procs[proc_id].fetch(slot,tag)
             self.arch.procs[proc_id].updateState(slot,tag,MESIStates.Exclusive)
       else: 
@@ -118,6 +161,18 @@ class MESIProtocol(CacheProtocol):
       if not hit or self.arch.procs[proc_id].state(slot,tag)==MESIStates.Invalid:
          self.stats.num_misses += 1
          if self.arch.procs[proc_id].lines[slot].state==MESIStates.Modified:
+            replacedAddrs.append( (self.arch.procs[proc_id].lines[slot].tag, slot) )
+            #if self.sharedCaches[0].lines[slot].tag!=None:
+            #   if self.sharedCaches[1].lines[slot].tag==None:
+			#      self.sharedCaches[1].fetch(slot, self.arch.procs[proc_id].lines[slot].tag)
+            #   else:
+			#      self.sharedCaches[0].fetch(slot, self.arch.procs[proc_id].lines[slot].tag)
+            #else:
+			#   self.sharedCaches[0].fetch(slot, self.arch.procs[proc_id].lines[slot].tag)
+            #self.sharedCache[addr % len(self.sharedCache)] = addr
+            replaced_block_id = compose_block_id(self.arch.procs[proc_id].lines[slot].tag,slot,self.arch.num_lines)
+            replaced_tag,replaced_slot = decompose_block_id(replaced_block_id,len(self.sharedCache.lines))
+            self.sharedCache.fetch(replaced_slot,replaced_tag)
             self.stats.replacement_writeback += 1
             if self._debug:
                print 'Replacement Writeback'
@@ -154,13 +209,33 @@ class MESIProtocol(CacheProtocol):
             if self._debug:
                print '[P'+str(proc_id)+' W '+str(addr)+'] Upgrade: cache line shared by '+str([ 'P'+str(pid) for pid in procs ])
          else:
+            #if (tag, slot) in replacedAddrs:
+            #   print 'Previously replaced address'
             if self._debug:
                print '[P'+str(proc_id)+' W '+str(addr)+'] Write miss: (off-chip memory access)'
             req_cycles += 3 #One hop to the memory controller: 3 cycles
-            req_cycles += 10 #Off-chip read: Memory Access latency 10
+            req_cycles += 1 #probing shared cache: 1 cycle
+            #if self.sharedCaches[0].has(slot,tag):
+            #   self.sharedCaches[0].fetch(slot,None)
+            #elif self.sharedCaches[1].has(slot,tag):
+            #   self.sharedCaches[1].fetch(slot,None)
+            #if self.sharedCache[addr % len(self.sharedCache)]==addr:
+            #   self.sharedCache[addr % len(self.sharedCache)] = None
+            prefetch_block_id = compose_block_id(tag,slot,self.arch.num_lines)
+            prefetch_tag,prefetch_slot = decompose_block_id(prefetch_block_id,len(self.sharedCache.lines))
+            if self.sharedCache.has(prefetch_slot, prefetch_tag):
+               self.sharedCache.fetch(prefetch_slot,None)
+            else:
+               req_cycles += 10 #Off-chip read: Memory Access latency 10
+               prefetch_tag, prefetch_slot, _ = map_mem_address(addr+self.arch.block_size,self.arch.block_size,self.arch.num_lines)
+               prefetch_block_id = compose_block_id(prefetch_tag,prefetch_slot,self.arch.num_lines)
+               prefetch_tag,prefetch_slot = decompose_block_id(prefetch_block_id,len(self.sharedCache.lines))
+               self.sharedCache.fetch(prefetch_slot,prefetch_tag)
             req_cycles += 3 #One hop back from the memory controller: 3 cycles
-            self.arch.procs[proc_id].fetch(slot,tag)
             self.stats.offchip_access += 1
+            #if (tag, slot) in replacedAddrs:
+            #   print 'Previously replaced address'
+            self.arch.procs[proc_id].fetch(slot,tag)
          self.arch.procs[proc_id].updateState(slot,tag,MESIStates.Modified)
       elif self.arch.procs[proc_id].state(slot,tag)==MESIStates.Shared:
          self.stats.num_misses += 1
